@@ -115,9 +115,11 @@ impl<N: NodeInfo> Delta<N> {
     }
 
     /// Synthesize a delta from a "union string" and two subsets, an old set
-    /// of deletions and a new set of deletions from the union. You can also
-    /// think of these as a set of insertions and one of deletions, with
-    /// overlap left alone. This is basically the inverse of `factor`.
+    /// of deletions and a new set of deletions from the union. The Delta is
+    /// from text to text, not union to union; anything in both subsets will
+    /// be assumed to be missing from the Delta base and the new text. You can
+    /// also think of these as a set of insertions and one of deletions, with
+    /// overlap doing nothing. This is basically the inverse of `factor`.
     ///
     /// ```no_run
     /// # use xi_rope::rope::{Rope, RopeInfo};
@@ -204,15 +206,18 @@ impl<N: NodeInfo> Delta<N> {
                 els = init;
             }
         }
-        (Interval::new_closed_open(iv_start, iv_end), Delta::new_document_len(els))
+        (Interval::new_closed_open(iv_start, iv_end), Delta::total_element_len(els))
     }
 
-    /// Returns the length of the new document given the internal
-    /// representation of it. In other words, the length of the transformed
-    /// string after this Delta is applied.
+    /// Returns the length of the new document. In other words, the length of
+    /// the transformed string after this Delta is applied.
     ///
-    /// d.apply(r).len() == new_document_len(d.els)
-    fn new_document_len(els: &[DeltaElement<N>]) -> usize {
+    /// `d.apply(r).len() == d.new_document_len()`
+    pub fn new_document_len(&self) -> usize {
+        Delta::total_element_len(self.els.as_slice())
+    }
+
+    fn total_element_len(els: &[DeltaElement<N>]) -> usize {
         els.iter().fold(0, |sum, el|
             sum + match *el {
                 DeltaElement::Copy(beg, end) => end - beg,
@@ -476,6 +481,7 @@ mod tests {
     fn simple() {
         let d = Delta::simple_edit(Interval::new_closed_open(1, 9), Rope::from("era"), 11);
         assert_eq!("herald", d.apply_to_string("hello world"));
+        assert_eq!(6, d.new_document_len());
     }
 
     #[test]
